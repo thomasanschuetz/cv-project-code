@@ -1,71 +1,143 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import streamlit as st
 import tensorflow as tf
 import numpy as np
+import pandas as pd
 from PIL import Image, ImageDraw
 from mtcnn import MTCNN
+from typing import List, Dict, Any, Tuple
 
-# 1. Modell & Gesichts-Detektor laden
+# Configuration Constants
+MODEL_PATH = '../models/mobilenet_augmented.keras'
+EMOTION_LABELS = ['Wut', 'Ekel', 'Angst', 'Freude', 'Neutral', 'Trauer', 'Überraschung']
+TARGET_SIZE = (48, 48)
+
+
 @st.cache_resource
-def load_resources():
-    model = tf.keras.models.load_model('../models/mobilenet_augmented.keras')
+def load_resources() -> Tuple[tf.keras.Model, MTCNN]:
+    """Loads and caches the Keras emotion recognition model and MTCNN face detector.
+
+    Returns:
+        Tuple[tf.keras.Model, MTCNN]: Cached model instance and face detector.
+    """
+    model = tf.keras.models.load_model(MODEL_PATH)
     detector = MTCNN()
     return model, detector
 
+
+def process_and_predict_faces(
+    image: Image.Image, 
+    faces: List[Dict[str, Any]], 
+    model: tf.keras.Model, 
+    labels: List[str]
+) -> Tuple[Image.Image, List[Dict[str, Any]]]:
+    """Crops faces from the input image, resizes them, runs emotion inference,
+
+    and draws bounding boxes on an annotated copy of the image.
+
+    Args:
+        image (Image.Image): Original input image (RGB format).
+        faces (List[Dict[str, Any]]): List of bounding box metadata detected by
+          MTCNN.
+        model (tf.keras.Model): Trained Keras classification model.
+        labels (List[str]): List of emotion label strings matching model outputs.
+
+    Returns:
+        Tuple[Image.Image, List[Dict[str, Any]]]:
+            - Annotated PIL Image with bounding boxes.
+            - List of dictionaries containing detection results and prediction
+            probabilities.
+    """
+    annotated_image = image.copy()
+    draw = ImageDraw.Draw(annotated_image)
+    predictions_list = []
+
+    for i, face in enumerate(faces):
+        # Extract bounding box coordinates and handle negative margins
+        x, y, width, height = face['box']
+        x, y = max(0, x), max(0, y)
+
+        # Crop face ROI and resize to expected model input dimensions
+        face_crop = image.crop((x, y, x + width, y + height))
+        face_resized = face_crop.resize(TARGET_SIZE)
+
+        # Prepare input tensor: (48, 48, 3) -> (1, 48, 48, 3)
+        input_tensor = np.expand_dims(np.array(face_resized), axis=0)
+
+        # Perform model inference
+        raw_predictions = model.predict(input_tensor, verbose=0)[0]
+        max_idx = np.argmax(raw_predictions)
+        predicted_emotion = labels[max_idx]
+        confidence = float(raw_predictions[max_idx] * 100)
+
+        # Draw bounding box on image
+        draw.rectangle([x, y, x + width, y + height], outline="lime", width=3)
+
+        predictions_list.append({
+            "face_index": i + 1,
+            "emotion": predicted_emotion,
+            "confidence": confidence,
+            "probs": raw_predictions
+        })
+
+    return annotated_image, predictions_list
+
+
+# Application Setup
 model, detector = load_resources()
 
-EMOTION_LABELS = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
+st.title("🎭 Social-Media-Emotionserkennung")
 
-# 2. UI Aufsetzen
-st.title("🎭 Social Media Emotionserkennung")
-st.write("Analyse von Gesichtern und Emotionen")
-
-uploaded_file = st.file_uploader("Bild auswählen (JPG, PNG)...", type=["jpg", "jpeg", "png", "webp"])
+uploaded_file = st.file_uploader(
+    "Wähle ein Bild aus (JPG, PNG, WEBP)...", 
+    type=["jpg", "jpeg", "png", "webp"]
+)
 
 if uploaded_file is not None:
-    # Bild mit PIL öffnen
+    # Load image and convert to RGB
     image = Image.open(uploaded_file).convert('RGB')
     image_np = np.array(image)
-    
-    # Gesichter erkennen (MTCNN arbeitet nativ mit PIL/NumPy)
+
+    # Detect faces in image
     faces = detector.detect_faces(image_np)
-    
-    if len(faces) == 0:
+
+    if not faces:
         st.warning("Keine Gesichter im Bild erkannt.")
     else:
-        # Kopie für Zeichnungen erstellen
-        annotated_image = image.copy()
-        draw = ImageDraw.Draw(annotated_image)
-        
-        for i, face in enumerate(faces):
-            x, y, width, height = face['box']
-            # Korrektur für negative Koordinaten-Ränder
-            x, y = max(0, x), max(0, y)
-            
-            # 1. Gesicht mit PIL zuschneiden
-            face_crop = image.crop((x, y, x + width, y + height))
-            
-            # 2. Auf 48x48 skalieren (PIL Image)
-            face_resized = face_crop.resize((48, 48))
-            
-            # 3. In NumPy Tensor umwandeln
-            face_array = np.array(face_resized)
-            
-            # Je nach Modell: 3-Kanal RGB oder 1-Kanal Graustufe
-            # Falls dein Modell RGB (48,48,3) erwartet:
-            input_tensor = np.expand_dims(face_array, axis=0)
-            
-            # 4. Inferenz
-            predictions = model.predict(input_tensor)[0]
-            max_idx = np.argmax(predictions)
-            predicted_emotion = EMOTION_LABELS[max_idx]
-            confidence = predictions[max_idx] * 100
-            
-            # 5. Bounding Box mit PIL zeichnen
-            draw.rectangle([x, y, x + width, y + height], outline="lime", width=3)
-            
-            # Text & Ausgabe
-            st.write(f"**Gesicht {i+1}:** {predicted_emotion} ({confidence:.1f}%)")
-            st.progress(int(confidence))
-            
-        # Bild in Streamlit anzeigen
-        st.image(annotated_image, caption="Analysiertes Bild", use_container_width=True)
+        # Run image processing and inference pipeline
+        annotated_img, predictions = process_and_predict_faces(
+            image=image, 
+            faces=faces, 
+            model=model, 
+            labels=EMOTION_LABELS
+        )
+
+        # Two-column UI layout
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            st.subheader("Erkanntes Gesicht")
+            st.image(annotated_img, caption="Analysiertes Bild", width='stretch')
+
+        with col2:
+            st.subheader("Emotions-Verteilung")
+
+            for pred in predictions:
+                if len(predictions) > 1:
+                    st.markdown(
+                        f"**Gesicht {pred['face_index']}:** {pred['emotion']} ({pred['confidence']:.1f}%)"
+                    )
+                else:
+                    st.markdown(
+                        f"Hauptemotion: **{pred['emotion']}** ({pred['confidence']:.1f}%)"
+                    )
+
+                # Prepare DataFrame for class probability visualization
+                chart_data = pd.DataFrame({
+                    "Emotion": EMOTION_LABELS,
+                    "Wahrscheinlichkeit (%)": pred['probs'] * 100
+                }).set_index("Emotion")
+
+                st.bar_chart(chart_data)
