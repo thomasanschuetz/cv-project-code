@@ -7,7 +7,7 @@ from mtcnn import MTCNN
 # 1. Modell & Gesichts-Detektor laden
 @st.cache_resource
 def load_resources():
-    model = tf.keras.models.load_model('../models/baseline_cnn_model.h5')
+    model = tf.keras.models.load_model('../models/mobilenet_augmented.keras')
     detector = MTCNN()
     return model, detector
 
@@ -17,9 +17,9 @@ EMOTION_LABELS = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surpri
 
 # 2. UI Aufsetzen
 st.title("🎭 Social Media Emotionserkennung")
-st.write("Analyse von Gesichtern und Emotionen ohne GUI-Abhängigkeiten.")
+st.write("Analyse von Gesichtern und Emotionen")
 
-uploaded_file = st.file_uploader("Bild auswählen (JPG, PNG)...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Bild auswählen (JPG, PNG)...", type=["jpg", "jpeg", "png", "webp"])
 
 if uploaded_file is not None:
     # Bild mit PIL öffnen
@@ -68,4 +68,4 @@ if uploaded_file is not None:
             st.progress(int(confidence))
             
         # Bild in Streamlit anzeigen
-        st.image(annotated_image, caption="Analysiertes Bild", use_column_width=True)
+        st.image(annotated_image, caption="Analysiertes Bild", use_container_width=True)
