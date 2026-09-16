@@ -10,7 +10,7 @@ from mtcnn import MTCNN
 from typing import List, Dict, Any, Tuple
 
 # Configuration Constants
-MODEL_PATH = '../models/mobilenet_augmented.keras'
+MODEL_PATH = '../models/resnet_augmented.keras'
 EMOTION_LABELS = ['Wut', 'Ekel', 'Angst', 'Freude', 'Neutral', 'Trauer', 'Überraschung']
 TARGET_SIZE = (48, 48)
 
