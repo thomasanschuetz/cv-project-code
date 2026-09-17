@@ -23,7 +23,7 @@ python -m venv venv; .\venv\Scripts\Activate.ps1; python -m pip install --upgrad
 
 ## 3. Skript ausführen
 
-Starte die Pipeline mit:
+Starte die Web-App mit:
 
 ```bash
 cd web-app
