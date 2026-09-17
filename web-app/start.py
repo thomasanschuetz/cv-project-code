@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Tuple
 # Configuration Constants
 MODEL_PATH = '../models/resnet_augmented.keras'
 EMOTION_LABELS = ['Wut', 'Ekel', 'Angst', 'Freude', 'Neutral', 'Trauer', 'Überraschung']
-TARGET_SIZE = (48, 48)
+# EMOTION_LABELS = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 
 @st.cache_resource
@@ -59,9 +59,18 @@ def process_and_predict_faces(
         x, y, width, height = face['box']
         x, y = max(0, x), max(0, y)
 
-        # Crop face ROI and resize to expected model input dimensions
-        face_crop = image.crop((x, y, x + width, y + height))
-        face_resized = face_crop.resize(TARGET_SIZE)
+        # crop quadratic
+        size = max(width, height)
+        cx = x + width / 2
+        cy = y + height / 2
+        left = int(cx - size / 2)
+        top = int(cy - size / 2)
+        right = int(cx + size / 2)
+        bottom = int(cy + size / 2)
+        face_crop = image.crop((left, top, right, bottom))
+        # resize to 48x48
+        face_resized = face_crop.resize((48, 48), Image.Resampling.LANCZOS)
+
 
         # Prepare input tensor: (48, 48, 3) -> (1, 48, 48, 3)
         input_tensor = np.expand_dims(np.array(face_resized), axis=0)
