@@ -1,6 +1,6 @@
 # Setup & Ausführung
 ## 1. Modell herunterladen
-Lade das Modell aus dem Kaggle-Notebook https://www.kaggle.com/code/thomasanschtz/cv-project/notebook herunter: /kaggle/working/resnet_augmented.keras und lege es im `models` Verzeichnis ab.
+Lade das Modell /kaggle/working/resnet_augmented.keras aus dem Kaggle-Notebook https://www.kaggle.com/code/thomasanschtz/cv-project/notebook herunter und lege es im `models` Verzeichnis ab.
 
 
 ## 2. Umgebung einrichten und Pakete installieren
